@@ -20,6 +20,7 @@ import json
 import os
 from datetime import timedelta
 
+import pandas
 import pandas as pd
 from pandas.testing import assert_frame_equal, assert_series_equal
 
@@ -45,7 +46,11 @@ with gzip.open(FLIGHTS_FILE_NAME) as f:
 _pd_flights = pd.DataFrame.from_records(flight_records).reindex(
     _ed_flights.columns, axis=1
 )
-_pd_flights["timestamp"] = pd.to_datetime(_pd_flights["timestamp"], format="ISO8601")
+pandas_major_version = int(pandas.__version__.split('.')[0])
+if pandas_major_version < 2:
+    _pd_flights["timestamp"] = pd.to_datetime(_pd_flights["timestamp"], format="%Y%m%dT%H:%M:%S")
+else:
+    _pd_flights["timestamp"] = pd.to_datetime(_pd_flights["timestamp"], format="ISO8601")
 _pd_flights.index = _pd_flights.index.map(str)  # make index 'object' not int
 
 _pd_flights_small = _pd_flights.head(48)
