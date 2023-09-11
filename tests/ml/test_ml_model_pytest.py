@@ -620,7 +620,7 @@ class TestMLModel:
         )
         response = ES_TEST_CLIENT.ml.infer_trained_model(
             model_id=regression_model_id,
-            docs=X[pipeline["es_model"].input_field_names].to_dict("records"),
+            docs=X[list(pipeline["es_model"].input_field_names)].to_dict("records"),
         )
         predictions_es = np.array(
             list(
@@ -664,7 +664,7 @@ class TestMLModel:
 
         response = ES_TEST_CLIENT.ml.infer_trained_model(
             model_id=classification_model_id,
-            docs=X[pipeline["es_model"].input_field_names].to_dict("records"),
+            docs=X[list(pipeline["es_model"].input_field_names)].to_dict("records"),
         )
         predictions_es = np.array(
             list(

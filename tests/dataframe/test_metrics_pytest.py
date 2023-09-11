@@ -444,7 +444,8 @@ class TestDataFrameMetrics(TestData):
         # Skipping dtype check because eland is giving Cancelled dtype as bool
         # but pandas is referring it as object
         assert_frame_equal(
-            pd_mode, ed_mode, check_dtype=(False if es_size == 1 else True)
+            pd_mode, ed_mode, check_dtype=(False if es_size == 1 else True),
+            check_like=True,
         )
 
     @pytest.mark.parametrize("quantiles", [[0.2, 0.5], [0, 1], [0.75, 0.2, 0.1, 0.5]])
