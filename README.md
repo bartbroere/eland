@@ -22,7 +22,7 @@
 
 ## About
 
-Eland is a Python Elasticsearch client for exploring and  analyzing data in Elasticsearch with a familiar
+Eland is a Python Elasticsearch client for exploring and analyzing data in Elasticsearch with a familiar
 Pandas-compatible API.
 
 Where possible the package uses existing Python APIs and data structures to make it easy to switch between numpy,
@@ -60,7 +60,7 @@ $ conda install -c conda-forge eland
   version of your Elasticsearch cluster. For all other features it is sufficient for the major versions
   to match.
 - You need to use PyTorch `1.13.1` or earlier to import an NLP model. 
-  Run `pip install torch==1.13.1` to install the aproppriate version of PyTorch.
+  Run `pip install torch==1.13.1` to install the appropriate version of PyTorch.
   
 
 ### Prerequisites
