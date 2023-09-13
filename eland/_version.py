@@ -16,9 +16,9 @@
 #  under the License.
 
 __title__ = "bartbroere_eland"
-__description__ = "Python Client and Toolkit for DataFrames, Big Data, Machine Learning and ETL in Elasticsearch"
+__description__ = "[Development fork!] Python Client and Toolkit for DataFrames, Big Data, Machine Learning and ETL in Elasticsearch"
 __url__ = "https://github.com/elastic/eland"
-__version__ = "8.9.0"
+__version__ = "8.9.0.1"
 __author__ = "Steve Dodson"
 __author_email__ = "steve.dodson@elastic.co"
 __maintainer__ = "Elastic Client Library Maintainers"
