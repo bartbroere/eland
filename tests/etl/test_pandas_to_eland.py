@@ -134,6 +134,7 @@ class TestPandasToEland:
 
         # Assert that the second pandas dataframe is actually appended
         assert df2.shape == (6, 4)
+        # use the "private" append method that's still available in pandas 2.0
         pd_df3 = pd_df._append(pd_df2)
         assert_pandas_eland_frame_equal(pd_df3, df2)
 
