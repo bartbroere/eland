@@ -956,8 +956,10 @@ class DataFrame(NDFrame):
         elif verbose is False:  # specifically set to False, not nesc None
             _non_verbose_repr()
         else:
-            _non_verbose_repr() if exceeds_info_cols else _verbose_repr(
-                number_of_columns
+            (
+                _non_verbose_repr()
+                if exceeds_info_cols
+                else _verbose_repr(number_of_columns)
             )
 
         # pandas 0.25.1 uses get_dtype_counts() here. This
@@ -983,7 +985,7 @@ class DataFrame(NDFrame):
                 index=self._query_compiler._index_pattern, metric=["store"]
             )["_all"]["total"]["store"]["size_in_bytes"]
             lines.append(
-                f"Elasticsearch storage usage: {_sizeof_fmt(storage_usage,size_qualifier)}\n"
+                f"Elasticsearch storage usage: {_sizeof_fmt(storage_usage, size_qualifier)}\n"
             )
 
         fmt.buffer_put_lines(buf, lines)
@@ -1339,6 +1341,48 @@ class DataFrame(NDFrame):
             "decimal": decimal,
         }
         return self._query_compiler.to_csv(**kwargs)
+
+    def to_json(
+        self,
+        path_or_buf=None,
+        orient=None,
+        date_format=None,
+        double_precision=10,
+        force_ascii=True,
+        date_unit="ms",
+        default_handler=None,
+        lines=False,
+        compression="infer",
+        index=True,
+        indent=None,
+        storage_options=None,
+    ):
+        """Write Elasticsearch data to a json file.
+
+        By setting the ``lines`` parameter to ``True``, and ``orient`` to ``'records'``,
+        the entire DataFrame can be written in a streaming manner.
+        Doing so avoids the need to have the entire DataFrame in memory.
+        This format is known as JSON lines and can use the file extension ``.jsonl``.
+
+        See Also
+        --------
+        :pandas_api_docs:`pandas.DataFrame.to_json`
+        """
+        kwargs = {
+            "path_or_buf": path_or_buf,
+            "orient": orient,
+            "date_format": date_format,
+            "double_precision": double_precision,
+            "force_ascii": force_ascii,
+            "date_unit": date_unit,
+            "default_handler": default_handler,
+            "lines": lines,
+            "compression": compression,
+            "index": index,
+            "indent": indent,
+            "storage_options": storage_options,
+        }
+        return self._query_compiler.to_json(**kwargs)
 
     def to_pandas(self, show_progress: bool = False) -> pd.DataFrame:
         """

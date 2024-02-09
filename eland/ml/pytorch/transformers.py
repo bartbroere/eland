@@ -22,6 +22,7 @@ libraries such as sentence-transformers.
 
 import json
 import os.path
+import random
 import re
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -30,6 +31,7 @@ import torch  # type: ignore
 import transformers  # type: ignore
 from sentence_transformers import SentenceTransformer  # type: ignore
 from torch import Tensor, nn
+from torch.profiler import profile  # type: ignore
 from transformers import (
     AutoConfig,
     AutoModel,
@@ -51,6 +53,7 @@ from eland.ml.pytorch.nlp_ml_model import (
     NlpTrainedModelConfig,
     NlpXLMRobertaTokenizationConfig,
     PassThroughInferenceOptions,
+    PrefixStrings,
     QuestionAnsweringInferenceOptions,
     TextClassificationInferenceOptions,
     TextEmbeddingInferenceOptions,
@@ -179,9 +182,9 @@ class _QuestionAnsweringWrapperModule(nn.Module):  # type: ignore
         self.config = model.config
 
     @staticmethod
-    def from_pretrained(model_id: str) -> Optional[Any]:
+    def from_pretrained(model_id: str, *, token: Optional[str] = None) -> Optional[Any]:
         model = AutoModelForQuestionAnswering.from_pretrained(
-            model_id, torchscript=True
+            model_id, token=token, torchscript=True
         )
         if isinstance(
             model.config,
@@ -245,8 +248,13 @@ class _TwoParameterQuestionAnsweringWrapper(_QuestionAnsweringWrapperModule):
 
 class _DistilBertWrapper(nn.Module):  # type: ignore
     """
-    A simple wrapper around DistilBERT model which makes the model inputs
-    conform to Elasticsearch's native inference processor interface.
+    In Elasticsearch the BERT tokenizer is used for DistilBERT models but
+    the BERT tokenizer produces 4 inputs where DistilBERT models expect 2.
+
+    Wrap the model's forward function in a method that accepts the 4
+    arguments passed to a BERT model then discard the token_type_ids
+    and the position_ids to match the wrapped DistilBERT model forward
+    function
     """
 
     def __init__(self, model: transformers.PreTrainedModel):
@@ -265,8 +273,8 @@ class _DistilBertWrapper(nn.Module):  # type: ignore
         self,
         input_ids: Tensor,
         attention_mask: Tensor,
-        _token_type_ids: Tensor,
-        _position_ids: Tensor,
+        _token_type_ids: Tensor = None,
+        _position_ids: Tensor = None,
     ) -> Tensor:
         """Wrap the input and output to conform to the native process interface."""
 
@@ -292,16 +300,20 @@ class _SentenceTransformerWrapperModule(nn.Module):  # type: ignore
 
     @staticmethod
     def from_pretrained(
-        model_id: str, output_key: str = DEFAULT_OUTPUT_KEY
+        model_id: str,
+        tokenizer: PreTrainedTokenizer,
+        *,
+        token: Optional[str] = None,
+        output_key: str = DEFAULT_OUTPUT_KEY,
     ) -> Optional[Any]:
-        model = AutoModel.from_pretrained(model_id, torchscript=True)
+        model = AutoModel.from_pretrained(model_id, token=token, torchscript=True)
         if isinstance(
-            model.config,
+            tokenizer,
             (
-                transformers.MPNetConfig,
-                transformers.XLMRobertaConfig,
-                transformers.RobertaConfig,
-                transformers.BartConfig,
+                transformers.BartTokenizer,
+                transformers.MPNetTokenizer,
+                transformers.RobertaTokenizer,
+                transformers.XLMRobertaTokenizer,
             ),
         ):
             return _TwoParameterSentenceTransformerWrapper(model, output_key)
@@ -393,8 +405,8 @@ class _DPREncoderWrapper(nn.Module):  # type: ignore
         self.config = model.config
 
     @staticmethod
-    def from_pretrained(model_id: str) -> Optional[Any]:
-        config = AutoConfig.from_pretrained(model_id)
+    def from_pretrained(model_id: str, *, token: Optional[str] = None) -> Optional[Any]:
+        config = AutoConfig.from_pretrained(model_id, token=token)
 
         def is_compatible() -> bool:
             is_dpr_model = config.model_type == "dpr"
@@ -463,12 +475,12 @@ class _TransformerTraceableModel(TraceableModel):
                 inputs["input_ids"].size(1), dtype=torch.long
             )
         if isinstance(
-            self._model.config,
+            self._tokenizer,
             (
-                transformers.MPNetConfig,
-                transformers.XLMRobertaConfig,
-                transformers.RobertaConfig,
-                transformers.BartConfig,
+                transformers.BartTokenizer,
+                transformers.MPNetTokenizer,
+                transformers.RobertaTokenizer,
+                transformers.XLMRobertaTokenizer,
             ),
         ):
             del inputs["token_type_ids"]
@@ -484,8 +496,7 @@ class _TransformerTraceableModel(TraceableModel):
         )
 
     @abstractmethod
-    def _prepare_inputs(self) -> transformers.BatchEncoding:
-        ...
+    def _prepare_inputs(self) -> transformers.BatchEncoding: ...
 
 
 class _TraceableClassificationModel(_TransformerTraceableModel, ABC):
@@ -579,11 +590,14 @@ class _TraceableTextSimilarityModel(_TransformerTraceableModel):
 class TransformerModel:
     def __init__(
         self,
+        *,
         model_id: str,
         task_type: str,
-        *,
         es_version: Optional[Tuple[int, int, int]] = None,
         quantize: bool = False,
+        access_token: Optional[str] = None,
+        ingest_prefix: Optional[str] = None,
+        search_prefix: Optional[str] = None,
     ):
         """
         Loads a model from the Hugging Face repository or local file and creates
@@ -606,17 +620,28 @@ class TransformerModel:
 
         quantize: bool, default False
             Quantize the model.
+
+        access_token: Optional[str]
+            For the HuggingFace Hub private model access
+
+        ingest_prefix: Optional[str]
+            Prefix string to prepend to input at ingest
+
+        search_prefix: Optional[str]
+            Prefix string to prepend to input at search
         """
 
         self._model_id = model_id
+        self._access_token = access_token
         self._task_type = task_type.replace("-", "_")
+        self._ingest_prefix = ingest_prefix
+        self._search_prefix = search_prefix
 
         # load Hugging Face model and tokenizer
         # use padding in the tokenizer to ensure max length sequences are used for tracing (at call time)
         #  - see: https://huggingface.co/transformers/serialization.html#dummy-inputs-and-standard-lengths
         self._tokenizer = transformers.AutoTokenizer.from_pretrained(
-            self._model_id,
-            use_fast=False,
+            self._model_id, token=self._access_token, use_fast=False
         )
 
         # check for a supported tokenizer
@@ -660,27 +685,23 @@ class TransformerModel:
         return vocab_obj
 
     def _create_tokenization_config(self) -> NlpTokenizationConfig:
+        _max_sequence_length = self._find_max_sequence_length()
+
         if isinstance(self._tokenizer, transformers.MPNetTokenizer):
             return NlpMPNetTokenizationConfig(
                 do_lower_case=getattr(self._tokenizer, "do_lower_case", None),
-                max_sequence_length=getattr(
-                    self._tokenizer, "max_model_input_sizes", dict()
-                ).get(self._model_id),
+                max_sequence_length=_max_sequence_length,
             )
         elif isinstance(
             self._tokenizer, (transformers.RobertaTokenizer, transformers.BartTokenizer)
         ):
             return NlpRobertaTokenizationConfig(
                 add_prefix_space=getattr(self._tokenizer, "add_prefix_space", None),
-                max_sequence_length=getattr(
-                    self._tokenizer, "max_model_input_sizes", dict()
-                ).get(self._model_id),
+                max_sequence_length=_max_sequence_length,
             )
         elif isinstance(self._tokenizer, transformers.XLMRobertaTokenizer):
             return NlpXLMRobertaTokenizationConfig(
-                max_sequence_length=getattr(
-                    self._tokenizer, "max_model_input_sizes", dict()
-                ).get(self._model_id),
+                max_sequence_length=_max_sequence_length
             )
         else:
             japanese_morphological_tokenizers = ["mecab"]
@@ -691,17 +712,37 @@ class TransformerModel:
             ):
                 return NlpBertJapaneseTokenizationConfig(
                     do_lower_case=getattr(self._tokenizer, "do_lower_case", None),
-                    max_sequence_length=getattr(
-                        self._tokenizer, "max_model_input_sizes", dict()
-                    ).get(self._model_id),
+                    max_sequence_length=_max_sequence_length,
                 )
             else:
                 return NlpBertTokenizationConfig(
                     do_lower_case=getattr(self._tokenizer, "do_lower_case", None),
-                    max_sequence_length=getattr(
-                        self._tokenizer, "max_model_input_sizes", dict()
-                    ).get(self._model_id),
+                    max_sequence_length=_max_sequence_length,
                 )
+
+    def _find_max_sequence_length(self) -> int:
+        # Sometimes the max_... values are present but contain
+        # a random or very large value.
+        REASONABLE_MAX_LENGTH = 8192
+        max_len = getattr(self._tokenizer, "max_model_input_sizes", dict()).get(
+            self._model_id
+        )
+        if max_len is not None and max_len < REASONABLE_MAX_LENGTH:
+            return int(max_len)
+
+        max_len = getattr(self._tokenizer, "model_max_length", None)
+        if max_len is not None and max_len < REASONABLE_MAX_LENGTH:
+            return int(max_len)
+
+        model_config = getattr(self._traceable_model._model, "config", None)
+        if model_config is None:
+            raise ValueError("Cannot determine model max input length")
+
+        max_len = getattr(model_config, "max_position_embeddings", None)
+        if max_len is not None and max_len < REASONABLE_MAX_LENGTH:
+            return int(max_len)
+
+        raise ValueError("Cannot determine model max input length")
 
     def _create_config(
         self, es_version: Optional[Tuple[int, int, int]]
@@ -729,7 +770,7 @@ class TransformerModel:
             else:
                 sample_embedding = self._traceable_model.sample_output()
                 if type(sample_embedding) is tuple:
-                    text_embedding, _ = sample_embedding
+                    text_embedding = sample_embedding[0]
                 else:
                     text_embedding = sample_embedding
 
@@ -743,6 +784,31 @@ class TransformerModel:
                 tokenization=tokenization_config
             )
 
+        # add static and dynamic memory state size to metadata
+        per_deployment_memory_bytes = self._get_per_deployment_memory()
+
+        per_allocation_memory_bytes = self._get_per_allocation_memory(
+            tokenization_config.max_sequence_length, 1
+        )
+
+        metadata = {
+            "per_deployment_memory_bytes": per_deployment_memory_bytes,
+            "per_allocation_memory_bytes": per_allocation_memory_bytes,
+        }
+
+        prefix_strings = (
+            PrefixStrings(
+                ingest_prefix=self._ingest_prefix, search_prefix=self._search_prefix
+            )
+            if self._ingest_prefix or self._search_prefix
+            else None
+        )
+        prefix_strings_supported = es_version is None or es_version >= (8, 12, 0)
+        if not prefix_strings_supported and prefix_strings:
+            raise Exception(
+                f"The Elasticsearch cluster version {es_version} does not support prefix strings. Support was added in version 8.12.0"
+            )
+
         return NlpTrainedModelConfig(
             description=f"Model {self._model_id} for task type '{self._task_type}'",
             model_type="pytorch",
@@ -750,12 +816,134 @@ class TransformerModel:
             input=TrainedModelInput(
                 field_names=["text_field"],
             ),
+            metadata=metadata,
+            prefix_strings=prefix_strings,
         )
 
-    def _create_traceable_model(self) -> TraceableModel:
+    def _get_per_deployment_memory(self) -> float:
+        """
+        Returns the static memory size of the model in bytes.
+        """
+        psize: float = sum(
+            param.nelement() * param.element_size()
+            for param in self._traceable_model.model.parameters()
+        )
+        bsize: float = sum(
+            buffer.nelement() * buffer.element_size()
+            for buffer in self._traceable_model.model.buffers()
+        )
+        return psize + bsize
+
+    def _get_per_allocation_memory(
+        self, max_seq_length: Optional[int], batch_size: int
+    ) -> float:
+        """
+        Returns the transient memory size of the model in bytes.
+
+        Parameters
+        ----------
+        max_seq_length : Optional[int]
+            Maximum sequence length to use for the model.
+        batch_size : int
+            Batch size to use for the model.
+        """
+        activities = [torch.profiler.ProfilerActivity.CPU]
+
+        # Get the memory usage of the model with a batch size of 1.
+        inputs_1 = self._get_model_inputs(max_seq_length, 1)
+        with profile(activities=activities, profile_memory=True) as prof:
+            self._traceable_model.model(*inputs_1)
+        mem1: float = prof.key_averages().total_average().cpu_memory_usage
+
+        # This is measuring memory usage of the model with a batch size of 2 and
+        # then linearly extrapolating it to get the memory usage of the model for
+        # a batch size of batch_size.
+        if batch_size == 1:
+            return mem1
+        inputs_2 = self._get_model_inputs(max_seq_length, 2)
+        with profile(activities=activities, profile_memory=True) as prof:
+            self._traceable_model.model(*inputs_2)
+        mem2: float = prof.key_averages().total_average().cpu_memory_usage
+        return mem1 + (mem2 - mem1) * (batch_size - 1)
+
+    def _get_model_inputs(
+        self,
+        max_length: Optional[int],
+        batch_size: int,
+    ) -> Tuple[Tensor, ...]:
+        """
+        Returns a random batch of inputs for the model.
+
+        Parameters
+        ----------
+        max_length : Optional[int]
+            Maximum sequence length to use for the model. Default is 512.
+        batch_size : int
+            Batch size to use for the model.
+        """
+        vocab: list[str] = list(self._tokenizer.get_vocab().keys())
+
+        # if optional max_length is not set, set it to 512
+        if max_length is None:
+            max_length = 512
+
+        # generate random text
+        texts: list[str] = [
+            " ".join(random.choices(vocab, k=max_length)) for _ in range(batch_size)
+        ]
+
+        # tokenize text
+        inputs: transformers.BatchEncoding = self._tokenizer(
+            texts,
+            padding="max_length",
+            return_tensors="pt",
+            truncation=True,
+            max_length=max_length,
+        )
+
+        return self._make_inputs_compatible(inputs)
+
+    def _make_inputs_compatible(
+        self, inputs: transformers.BatchEncoding
+    ) -> Tuple[Tensor, ...]:
+        """ "
+        Make the input batch format compatible to the model's requirements.
+
+        Parameters
+        ----------
+        inputs : transformers.BatchEncoding
+            The input batch to make compatible.
+        """
+        # Add params when not provided by the tokenizer (e.g. DistilBERT), to conform to BERT interface
+        if "token_type_ids" not in inputs:
+            inputs["token_type_ids"] = torch.zeros(
+                inputs["input_ids"].size(1), dtype=torch.long
+            )
+        if isinstance(
+            self._tokenizer,
+            (
+                transformers.BartTokenizer,
+                transformers.MPNetTokenizer,
+                transformers.RobertaTokenizer,
+                transformers.XLMRobertaTokenizer,
+            ),
+        ):
+            del inputs["token_type_ids"]
+            return (inputs["input_ids"], inputs["attention_mask"])
+
+        position_ids = torch.arange(inputs["input_ids"].size(1), dtype=torch.long)
+        inputs["position_ids"] = position_ids
+        return (
+            inputs["input_ids"],
+            inputs["attention_mask"],
+            inputs["token_type_ids"],
+            inputs["position_ids"],
+        )
+
+    def _create_traceable_model(self) -> _TransformerTraceableModel:
         if self._task_type == "auto":
             model = transformers.AutoModel.from_pretrained(
-                self._model_id, torchscript=True
+                self._model_id, token=self._access_token, torchscript=True
             )
             maybe_task_type = task_type_from_model_config(model.config)
             if maybe_task_type is None:
@@ -767,54 +955,58 @@ class TransformerModel:
 
         if self._task_type == "fill_mask":
             model = transformers.AutoModelForMaskedLM.from_pretrained(
-                self._model_id, torchscript=True
+                self._model_id, token=self._access_token, torchscript=True
             )
             model = _DistilBertWrapper.try_wrapping(model)
             return _TraceableFillMaskModel(self._tokenizer, model)
 
         elif self._task_type == "ner":
             model = transformers.AutoModelForTokenClassification.from_pretrained(
-                self._model_id, torchscript=True
+                self._model_id, token=self._access_token, torchscript=True
             )
             model = _DistilBertWrapper.try_wrapping(model)
             return _TraceableNerModel(self._tokenizer, model)
 
         elif self._task_type == "text_classification":
             model = transformers.AutoModelForSequenceClassification.from_pretrained(
-                self._model_id, torchscript=True
+                self._model_id, token=self._access_token, torchscript=True
             )
             model = _DistilBertWrapper.try_wrapping(model)
             return _TraceableTextClassificationModel(self._tokenizer, model)
 
         elif self._task_type == "text_embedding":
-            model = _DPREncoderWrapper.from_pretrained(self._model_id)
+            model = _DPREncoderWrapper.from_pretrained(
+                self._model_id, token=self._access_token
+            )
             if not model:
                 model = _SentenceTransformerWrapperModule.from_pretrained(
-                    self._model_id
+                    self._model_id, self._tokenizer, token=self._access_token
                 )
             return _TraceableTextEmbeddingModel(self._tokenizer, model)
 
         elif self._task_type == "zero_shot_classification":
             model = transformers.AutoModelForSequenceClassification.from_pretrained(
-                self._model_id, torchscript=True
+                self._model_id, token=self._access_token, torchscript=True
             )
             model = _DistilBertWrapper.try_wrapping(model)
             return _TraceableZeroShotClassificationModel(self._tokenizer, model)
 
         elif self._task_type == "question_answering":
-            model = _QuestionAnsweringWrapperModule.from_pretrained(self._model_id)
+            model = _QuestionAnsweringWrapperModule.from_pretrained(
+                self._model_id, token=self._access_token
+            )
             return _TraceableQuestionAnsweringModel(self._tokenizer, model)
 
         elif self._task_type == "text_similarity":
             model = transformers.AutoModelForSequenceClassification.from_pretrained(
-                self._model_id, torchscript=True
+                self._model_id, token=self._access_token, torchscript=True
             )
             model = _DistilBertWrapper.try_wrapping(model)
             return _TraceableTextSimilarityModel(self._tokenizer, model)
 
         elif self._task_type == "pass_through":
             model = transformers.AutoModel.from_pretrained(
-                self._model_id, torchscript=True
+                self._model_id, token=self._access_token, torchscript=True
             )
             return _TraceablePassThroughModel(self._tokenizer, model)
 

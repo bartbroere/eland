@@ -2,6 +2,131 @@
 Changelog
 =========
 
+8.12.1 (2024-01-30)
+-------------------
+
+Fixed
+^^^^^
+
+* Fix missing value support for XGBRanker (`#654`_)
+
+.. _#654: https://github.com/elastic/eland/pull/654
+
+
+8.12.0 (2024-01-18)
+-------------------
+
+Added
+^^^^^
+
+* Supported XGBRanker model (`#649`_)
+* Accepted LTR (Learning to rank) model config when importing model (`#645`_, `#651`_)
+* Added LTR feature logger (`#648`_)
+* Added ``prefix_string`` config option to the import model hub script (`#642`_)
+* Made online retail analysis notebook runnable in Colab (`#641`_)
+* Added new movie dataset to the tests (`#646`_)
+
+
+.. _#641: https://github.com/elastic/eland/pull/641
+.. _#642: https://github.com/elastic/eland/pull/642
+.. _#645: https://github.com/elastic/eland/pull/645
+.. _#646: https://github.com/elastic/eland/pull/646
+.. _#648: https://github.com/elastic/eland/pull/648
+.. _#649: https://github.com/elastic/eland/pull/649
+.. _#651: https://github.com/elastic/eland/pull/651
+
+8.11.1 (2023-11-22)
+-------------------
+Added
+^^^^^
+
+* Make demo notebook runnable in Colab (`#630`_)
+
+Changed
+^^^^^^^
+
+* Bump Shap version to 0.43 (`#636`_)
+
+Fixed
+^^^^^
+
+* Fix failed import of Sentence Transformer RoBERTa models  (`#637`_)
+
+
+.. _#630: https://github.com/elastic/eland/pull/630
+.. _#636: https://github.com/elastic/eland/pull/636
+.. _#637: https://github.com/elastic/eland/pull/637
+
+8.11.0 (2023-11-08)
+-------------------
+
+Added
+^^^^^
+
+* Support E5 small multilingual model (`#625`_)
+
+Changed
+^^^^^^^
+
+* Stream writes in ``ed.DataFrame.to_csv()`` (`#579`_)
+* Improve memory estimation for NLP models (`#568`_)
+
+Fixed
+^^^^^
+
+* Fixed deprecations in preparation of Pandas 2.0 support (`#602`_, `#603`_, contributed by `@bartbroere`_)
+
+
+.. _#568: https://github.com/elastic/eland/pull/568
+.. _#579: https://github.com/elastic/eland/pull/579
+.. _#602: https://github.com/elastic/eland/pull/602
+.. _#603: https://github.com/elastic/eland/pull/603
+.. _#625: https://github.com/elastic/eland/pull/625
+
+8.10.1 (2023-10-11)
+-------------------
+
+Fixed
+^^^^^
+
+* Fixed direct usage of TransformerModel (`#619`_)
+
+.. _#619: https://github.com/elastic/eland/pull/619
+
+8.10.0 (2023-10-09)
+-------------------
+
+Added
+^^^^^
+
+* Published pre-built Docker images to docker.elastic.co/eland/eland (`#613`_)
+* Allowed importing private HuggingFace models (`#608`_)
+* Added Apple Silicon (arm64) support to Docker image (`#615`_)
+* Allowed importing some DPR models like ance-dpr-context-multi (`#573`_)
+* Allowed using the Pandas API without monitoring/main permissions (`#581`_)
+
+Changed
+^^^^^^^
+
+* Updated Docker image to Debian 12 Bookworm (`#613`_)
+* Reduced Docker image size by not installing unused PyTorch GPU support on amd64 (`#615`_)
+* Reduced model chunk size to 1MB (`#605`_)
+
+Fixed
+^^^^^
+
+* Fixed deprecations in preparation of Pandas 2.0 support (`#593`_, `#596`_, contributed by `@bartbroere`_)
+
+.. _@bartbroere: https://github.com/bartbroere
+.. _#613: https://github.com/elastic/eland/pull/613
+.. _#608: https://github.com/elastic/eland/pull/608
+.. _#615: https://github.com/elastic/eland/pull/615
+.. _#573: https://github.com/elastic/eland/pull/573
+.. _#581: https://github.com/elastic/eland/pull/581
+.. _#605: https://github.com/elastic/eland/pull/605
+.. _#593: https://github.com/elastic/eland/pull/593
+.. _#596: https://github.com/elastic/eland/pull/596
+
 8.9.0 (2023-08-24)
 ------------------
 
