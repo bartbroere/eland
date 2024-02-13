@@ -111,7 +111,7 @@ setup(
         "console_scripts": "eland_import_hub_model=eland.cli.eland_import_hub_model:main"
     },
     python_requires=">=3.8",
-    package_data={"eland": ["py.typed"], "kql": ["*.g"]},
+    package_data={"eland": ["py.typed"], "kql": ["kql.g"]},
     include_package_data=True,
     zip_safe=False,
     extras_require=extras,
