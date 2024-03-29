@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd  # type: ignore
+from kql import to_dsl
 from pandas.core.common import apply_if_callable, is_bool_indexer  # type: ignore
 from pandas.core.computation.eval import eval  # type: ignore
 from pandas.core.dtypes.common import is_list_like  # type: ignore
@@ -790,6 +791,45 @@ class DataFrame(NDFrame):
             query = query["query"]
         return DataFrame(_query_compiler=self._query_compiler.es_query(query))
 
+    def kql_query(self, query):
+        """Applies a Kibana Query Language query (KQL / Kuery) to the DataFrame.
+        The query is converted to Elasticsearch DSL.
+        Note that KQL can only be used to filter data.
+
+        Parameters
+        ----------
+        query:
+            KQL query as a string
+
+        Returns
+        -------
+        eland.DataFrame:
+            eland DataFrame with the query applied
+
+        Examples
+        --------
+
+        Apply a filtering to the flights dataset, flights from Milan that take longer than 12 hours.
+
+        >>> columns = ["OriginCityName", "DestCityName", "FlightTimeHour", "AvgTicketPrice"]
+        >>> df = ed.DataFrame('http://localhost:9200', 'flights', columns=columns)
+        >>> df.kql_query('OriginCityName:Milan and FlightTimeHour > 12').head(10)
+             OriginCityName         DestCityName  FlightTimeHour  AvgTicketPrice
+        468           Milan  Chitose / Tomakomai       15.499956      646.162588
+        471           Milan                Tokyo       14.805640      933.586896
+        726           Milan               Sydney       14.552814      574.534422
+        886           Milan         Buenos Aires       16.938412      748.639741
+        1097          Milan               Sydney       25.469282      913.483049
+        1708          Milan         Buenos Aires       17.718905      975.483549
+        1865          Milan               Sydney       20.014910      956.411751
+        2410          Milan            Melbourne       15.988900      650.720199
+        2463          Milan               Sydney       13.166832      344.815508
+        2487          Milan         Buenos Aires       14.916122      684.506066
+        <BLANKLINE>
+        [10 rows x 4 columns]
+        """
+        return self.es_query(to_dsl(query))
+
     def _index_summary(self):
         # Print index summary e.g.
         # Index: 103 entries, 0 to 102
@@ -956,8 +996,10 @@ class DataFrame(NDFrame):
         elif verbose is False:  # specifically set to False, not nesc None
             _non_verbose_repr()
         else:
-            _non_verbose_repr() if exceeds_info_cols else _verbose_repr(
-                number_of_columns
+            (
+                _non_verbose_repr()
+                if exceeds_info_cols
+                else _verbose_repr(number_of_columns)
             )
 
         # pandas 0.25.1 uses get_dtype_counts() here. This
@@ -983,7 +1025,7 @@ class DataFrame(NDFrame):
                 index=self._query_compiler._index_pattern, metric=["store"]
             )["_all"]["total"]["store"]["size_in_bytes"]
             lines.append(
-                f"Elasticsearch storage usage: {_sizeof_fmt(storage_usage,size_qualifier)}\n"
+                f"Elasticsearch storage usage: {_sizeof_fmt(storage_usage, size_qualifier)}\n"
             )
 
         fmt.buffer_put_lines(buf, lines)
@@ -1302,6 +1344,7 @@ class DataFrame(NDFrame):
         compression="infer",
         quoting=None,
         quotechar='"',
+        line_terminator=None,
         lineterminator=None,
         chunksize=None,
         tupleize_cols=None,
@@ -1317,6 +1360,13 @@ class DataFrame(NDFrame):
         --------
         :pandas_api_docs:`pandas.DataFrame.to_csv`
         """
+        if line_terminator:
+            warnings.warn(
+                "The line_terminator argument will be replaced by lineterminator",
+                PendingDeprecationWarning,
+                stacklevel=2,
+            )
+
         kwargs = {
             "path_or_buf": path_or_buf,
             "sep": sep,
@@ -1331,7 +1381,7 @@ class DataFrame(NDFrame):
             "compression": compression,
             "quoting": quoting,
             "quotechar": quotechar,
-            "lineterminator": lineterminator,
+            "lineterminator": lineterminator or line_terminator,
             "chunksize": chunksize,
             "date_format": date_format,
             "doublequote": doublequote,
@@ -1339,6 +1389,48 @@ class DataFrame(NDFrame):
             "decimal": decimal,
         }
         return self._query_compiler.to_csv(**kwargs)
+
+    def to_json(
+        self,
+        path_or_buf=None,
+        orient=None,
+        date_format=None,
+        double_precision=10,
+        force_ascii=True,
+        date_unit="ms",
+        default_handler=None,
+        lines=False,
+        compression="infer",
+        index=True,
+        indent=None,
+        storage_options=None,
+    ):
+        """Write Elasticsearch data to a json file.
+
+        By setting the ``lines`` parameter to ``True``, and ``orient`` to ``'records'``,
+        the entire DataFrame can be written in a streaming manner.
+        Doing so avoids the need to have the entire DataFrame in memory.
+        This format is known as JSON lines and can use the file extension ``.jsonl``.
+
+        See Also
+        --------
+        :pandas_api_docs:`pandas.DataFrame.to_json`
+        """
+        kwargs = {
+            "path_or_buf": path_or_buf,
+            "orient": orient,
+            "date_format": date_format,
+            "double_precision": double_precision,
+            "force_ascii": force_ascii,
+            "date_unit": date_unit,
+            "default_handler": default_handler,
+            "lines": lines,
+            "compression": compression,
+            "index": index,
+            "indent": indent,
+            "storage_options": storage_options,
+        }
+        return self._query_compiler.to_json(**kwargs)
 
     def to_pandas(self, show_progress: bool = False) -> pd.DataFrame:
         """

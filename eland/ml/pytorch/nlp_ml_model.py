@@ -308,6 +308,23 @@ class TrainedModelInput:
         return self.__dict__
 
 
+class PrefixStrings:
+    def __init__(
+        self, *, ingest_prefix: t.Optional[str], search_prefix: t.Optional[str]
+    ):
+        self.ingest_prefix = ingest_prefix
+        self.search_prefix = search_prefix
+
+    def to_dict(self) -> t.Dict[str, t.Any]:
+        config = {}
+        if self.ingest_prefix is not None:
+            config["ingest"] = self.ingest_prefix
+        if self.search_prefix is not None:
+            config["search"] = self.search_prefix
+
+        return config
+
+
 class NlpTrainedModelConfig:
     def __init__(
         self,
@@ -317,16 +334,16 @@ class NlpTrainedModelConfig:
         input: TrainedModelInput = TrainedModelInput(field_names=["text_field"]),
         metadata: t.Optional[dict] = None,
         model_type: t.Union["t.Literal['pytorch']", str] = "pytorch",
-        default_field_map: t.Optional[t.Mapping[str, str]] = None,
         tags: t.Optional[t.Union[t.List[str], t.Tuple[str, ...]]] = None,
+        prefix_strings: t.Optional[PrefixStrings],
     ):
         self.tags = tags
-        self.default_field_map = default_field_map
         self.description = description
         self.inference_config = inference_config
         self.input = input
         self.metadata = metadata
         self.model_type = model_type
+        self.prefix_strings = prefix_strings
 
     def to_dict(self) -> t.Dict[str, t.Any]:
         return {

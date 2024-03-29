@@ -50,12 +50,10 @@ class TraceableModel(ABC):
         return self._trace()
 
     @abstractmethod
-    def sample_output(self) -> torch.Tensor:
-        ...
+    def sample_output(self) -> torch.Tensor: ...
 
     @abstractmethod
-    def _trace(self) -> TracedModelTypes:
-        ...
+    def _trace(self) -> TracedModelTypes: ...
 
     def classification_labels(self) -> Optional[List[str]]:
         return None
@@ -66,3 +64,7 @@ class TraceableModel(ABC):
         trace_model = torch.jit.freeze(trace_model)
         torch.jit.save(trace_model, model_path)
         return model_path
+
+    @property
+    def model(self) -> nn.Module:
+        return self._model

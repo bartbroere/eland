@@ -12,8 +12,7 @@
   <a href="https://pepy.tech/project/eland"><img src="https://static.pepy.tech/badge/eland" alt="Downloads"></a>
   <a href="https://pypi.org/project/eland"><img src="https://img.shields.io/pypi/status/eland.svg"
       alt="Package Status"></a>
-  <a href="https://clients-ci.elastic.co/job/elastic+eland+main"><img
-      src="https://clients-ci.elastic.co/buildStatus/icon?job=elastic%2Beland%2Bmain" alt="Build Status"></a>
+  <a href="https://buildkite.com/elastic/eland"><img src="https://badge.buildkite.com/d92340e800bc06a7c7c02a71b8d42fcb958bd18c25f99fe2d9.svg" alt="Build Status"></a>
   <a href="https://github.com/elastic/eland/blob/main/LICENSE.txt"><img src="https://img.shields.io/pypi/l/eland.svg"
       alt="License"></a>
   <a href="https://eland.readthedocs.io"><img
@@ -54,13 +53,13 @@ $ conda install -c conda-forge eland
 
 ### Compatibility
 
-- Supports Python 3.8, 3.9, 3.10 and Pandas 1.5
-- Supports Elasticsearch clusters that are 7.11+, recommended 8.3 or later for all features to work.
+- Supports Python 3.8, 3.9, 3.10, 3.11 and Pandas 1.5
+- Supports Elasticsearch clusters that are 7.11+, recommended 8.13 or later for all features to work.
   If you are using the NLP with PyTorch feature make sure your Eland minor version matches the minor 
   version of your Elasticsearch cluster. For all other features it is sufficient for the major versions
   to match.
-- You need to use PyTorch `1.13.1` or earlier to import an NLP model. 
-  Run `pip install torch==1.13.1` to install the aproppriate version of PyTorch.
+- You need to install the appropriate version of PyTorch to import an NLP model. Run `python -m pip
+  install 'eland[pytorch]'` to install that version.
   
 
 ### Prerequisites
@@ -79,24 +78,19 @@ specifying different package names.
 
 ### Docker
 
-Users wishing to use Eland without installing it, in order to just run the available scripts, can build the Docker
-container:
+If you want to use Eland without installing it just to run the available scripts, use the Docker
+image.
+It can be used interactively:
 
 ```bash
-$ docker build -t elastic/eland .
-```
-
-The container can now be used interactively:
-
-```bash
-$ docker run -it --rm --network host elastic/eland
+$ docker run -it --rm --network host docker.elastic.co/eland/eland
 ```
 
 Running installed scripts is also possible without an interactive shell, e.g.:
 
 ```bash
 $ docker run -it --rm --network host \
-    elastic/eland \
+    docker.elastic.co/eland/eland \
     eland_import_hub_model \
       --url http://host.docker.internal:9200/ \
       --hub-model-id elastic/distilbert-base-cased-finetuned-conll03-english \
@@ -283,3 +277,15 @@ Downloading: 100%|██████████| 249M/249M [00:23<00:00, 11.2MB
 >>> ptm.import_model(model_path=model_path, config_path=None, vocab_path=vocab_path, config=config)
 100%|██████████| 63/63 [00:12<00:00,  5.02it/s]
 ```
+
+## Feedback 🗣️
+
+The engineering team here at Elastic is looking for developers to participate in
+research and feedback sessions to learn more about how you use Eland and what
+improvements we can make to their design and your workflow. If you're interested
+in sharing your insights into developer experience and language client design,
+please fill out this [short form](https://forms.gle/bYZwDQXijfhfwshn9).
+Depending on the number of responses we get, we may either contact you for a 1:1
+conversation or a focus group with other developers who use the same client.
+Thank you in advance - your feedback is crucial to improving the user experience
+for all Elasticsearch developers!

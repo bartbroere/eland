@@ -72,10 +72,11 @@ def lint(session):
     # https://numpy.org/devdocs/reference/typing.html#mypy-plugin
     session.install("black", "flake8", "mypy", "isort", "numpy")
     session.install("--pre", "elasticsearch>=8.3,<9")
+    session.install("git+https://github.com/elastic/detection-rules")
     session.run("python", "utils/license-headers.py", "check", *SOURCE_FILES)
     session.run("black", "--check", "--target-version=py38", *SOURCE_FILES)
     session.run("isort", "--check", "--profile=black", *SOURCE_FILES)
-    session.run("flake8", "--ignore=E501,W503,E402,E712,E203", *SOURCE_FILES)
+    session.run("flake8", "--extend-ignore=E203,E402,E501,E704,E712", *SOURCE_FILES)
 
     # TODO: When all files are typed we can change this to .run("mypy", "--strict", "eland/")
     session.log("mypy --show-error-codes --strict eland/")
@@ -101,10 +102,7 @@ def lint(session):
 
 
 @nox.session(python=["3.8", "3.9", "3.10", "3.11"])
-@nox.parametrize("pandas_version", [
-    "1.4.4",
-    "1.5.0",
-])
+@nox.parametrize("pandas_version", ["1.5.0"])
 def test(session, pandas_version: str):
     session.install("-r", "requirements-dev.txt")
     session.install(".")
@@ -115,6 +113,8 @@ def test(session, pandas_version: str):
         "python",
         "-m",
         "pytest",
+        "-ra",
+        "--tb=native",
         "--cov-report=term-missing",
         "--cov=eland/",
         "--cov-config=setup.cfg",
@@ -122,8 +122,8 @@ def test(session, pandas_version: str):
         "--nbval",
     )
 
-    # PyTorch doesn't support Python 3.11 yet
-    if session.python == "3.11":
+    # PyTorch 2.1.2 doesn't support Python 3.12
+    if session.python == "3.12":
         pytest_args += ("--ignore=eland/ml/pytorch",)
     session.run(
         *pytest_args,
