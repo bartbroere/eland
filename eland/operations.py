@@ -1600,10 +1600,23 @@ def _search_yield_hits(
 
         # Modify the search with the new point in time ID and keep-alive time.
         body["pit"] = {"id": pit_id, "keep_alive": DEFAULT_PIT_KEEP_ALIVE}
+        if isinstance(body["_source"], list):
+            body["fields"] = body["_source"]
 
         while max_number_of_hits is None or hits_yielded < max_number_of_hits:
             resp = client.search(**body)
-            hits: List[Dict[str, Any]] = resp["hits"]["hits"]
+            hits: List[Dict[str, Any]] = []
+            for hit in resp["hits"]["hits"]:
+                # Copy some of the fields to _source if they are missing there.
+                if "fields" in hit and "_source" in hit:
+                    fields = hit["fields"]
+                    del hit["fields"]
+                    for k, v in fields.items():
+                        if k not in hit["_source"]:
+                            # TODO find out if they are always length one
+                            #      or if this is cutting corners
+                            hit["_source"][k] = v[0]
+                hits.append(hit)
 
             # The point in time ID can change between searches so we
             # need to keep the next search up-to-date
