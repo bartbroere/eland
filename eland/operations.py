@@ -1543,6 +1543,24 @@ def quantile_to_percentile(quantile: Union[int, float]) -> float:
     return float(min(100, max(0, quantile * 100)))
 
 
+def is_field_already_present(
+    key: str, data: Union[Dict[str, Any], List[Dict[str, Any]]]
+) -> bool:
+    if "." in key:
+        splitted = key.split(".")
+        if isinstance(data, dict):
+            return is_field_already_present(
+                ".".join(splitted[1:]), data.get(splitted[0], {})
+            )
+        if isinstance(data, list):
+            return any(
+                is_field_already_present(".".join(splitted[1:]), x.get(splitted[0], {}))
+                for x in data
+            )
+    else:
+        return key in data
+
+
 def _search_yield_hits(
     query_compiler: "QueryCompiler",
     body: Dict[str, Any],
@@ -1612,10 +1630,11 @@ def _search_yield_hits(
                     fields = hit["fields"]
                     del hit["fields"]
                     for k, v in fields.items():
-                        if k not in hit["_source"]:
-                            # TODO find out if they are always length one
-                            #      or if this is cutting corners
-                            hit["_source"][k] = v[0]
+                        if not is_field_already_present(k, hit["_source"]):
+                            if isinstance(v, list):
+                                hit["_source"][k] = list(sorted(v))
+                            else:
+                                hit["_source"][k] = v
                 hits.append(hit)
 
             # The point in time ID can change between searches so we
