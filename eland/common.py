@@ -52,6 +52,10 @@ PANDAS_VERSION: Tuple[int, ...] = tuple(
 _ELAND_MAJOR_VERSION = int(_eland_version.split(".")[0])
 
 
+class ElandDeprecationWarning(DeprecationWarning):
+    """Warning for deprecation functionality in Eland"""
+
+
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     EMPTY_SERIES_DTYPE = pd.Series().dtype
@@ -342,6 +346,17 @@ def es_version(es_client: Elasticsearch) -> Tuple[int, int, int]:
     else:
         eland_es_version = es_client._eland_es_version
     return eland_es_version
+
+
+def is_serverless_es(es_client: Elasticsearch) -> bool:
+    """
+    Returns true if the client is connected to a serverless instance of Elasticsearch.
+    """
+    es_info = es_client.info()
+    return (
+        "build_flavor" in es_info["version"]
+        and es_info["version"]["build_flavor"] == "serverless"
+    )
 
 
 def parse_es_version(version: str) -> Tuple[int, int, int]:

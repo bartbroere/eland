@@ -36,6 +36,7 @@ from transformers import (
     AutoConfig,
     AutoModel,
     AutoModelForQuestionAnswering,
+    BertTokenizer,
     PretrainedConfig,
     PreTrainedModel,
     PreTrainedTokenizer,
@@ -43,6 +44,7 @@ from transformers import (
 )
 
 from eland.ml.pytorch.nlp_ml_model import (
+    DebertaV2Config,
     FillMaskInferenceOptions,
     NerInferenceOptions,
     NlpBertJapaneseTokenizationConfig,
@@ -115,6 +117,7 @@ SUPPORTED_TOKENIZERS = (
     transformers.BartTokenizer,
     transformers.SqueezeBertTokenizer,
     transformers.XLMRobertaTokenizer,
+    transformers.DebertaV2Tokenizer,
 )
 SUPPORTED_TOKENIZERS_NAMES = ", ".join(sorted([str(x) for x in SUPPORTED_TOKENIZERS]))
 
@@ -318,6 +321,7 @@ class _SentenceTransformerWrapperModule(nn.Module):  # type: ignore
                 transformers.MPNetTokenizer,
                 transformers.RobertaTokenizer,
                 transformers.XLMRobertaTokenizer,
+                transformers.DebertaV2Tokenizer,
             ),
         ):
             return _TwoParameterSentenceTransformerWrapper(model, output_key)
@@ -485,6 +489,7 @@ class _TransformerTraceableModel(TraceableModel):
                 transformers.MPNetTokenizer,
                 transformers.RobertaTokenizer,
                 transformers.XLMRobertaTokenizer,
+                transformers.DebertaV2Tokenizer,
             ),
         ):
             del inputs["token_type_ids"]
@@ -517,6 +522,15 @@ class _TraceableFillMaskModel(_TransformerTraceableModel):
         return self._tokenizer(
             "Who was Jim Henson?",
             "[MASK] Henson was a puppeteer",
+            padding="max_length",
+            return_tensors="pt",
+        )
+
+
+class _TraceableTextExpansionModel(_TransformerTraceableModel):
+    def _prepare_inputs(self) -> transformers.BatchEncoding:
+        return self._tokenizer(
+            "This is an example sentence.",
             padding="max_length",
             return_tensors="pt",
         )
@@ -718,6 +732,11 @@ class TransformerModel:
             return NlpXLMRobertaTokenizationConfig(
                 max_sequence_length=_max_sequence_length
             )
+        elif isinstance(self._tokenizer, transformers.DebertaV2Tokenizer):
+            return DebertaV2Config(
+                max_sequence_length=_max_sequence_length,
+                do_lower_case=getattr(self._tokenizer, "do_lower_case", None),
+            )
         else:
             japanese_morphological_tokenizers = ["mecab"]
             if (
@@ -757,6 +776,9 @@ class TransformerModel:
                 if max_len is not None and max_len < REASONABLE_MAX_LENGTH:
                     return int(max_len)
 
+        if isinstance(self._tokenizer, BertTokenizer):
+            return 512
+
         raise UnknownModelInputSizeError("Cannot determine model max input length")
 
     def _create_config(
@@ -769,6 +791,9 @@ class TransformerModel:
             tokenization_config.max_sequence_length = 386
             tokenization_config.span = 128
             tokenization_config.truncate = "none"
+
+        if self._task_type == "text_similarity":
+            tokenization_config.truncate = "second"
 
         if self._traceable_model.classification_labels():
             inference_config = TASK_TYPE_TO_INFERENCE_CONFIG[self._task_type](
@@ -968,6 +993,13 @@ class TransformerModel:
             else:
                 self._task_type = maybe_task_type
 
+        if self._task_type == "text_expansion":
+            model = transformers.AutoModelForMaskedLM.from_pretrained(
+                self._model_id, token=self._access_token, torchscript=True
+            )
+            model = _DistilBertWrapper.try_wrapping(model)
+            return _TraceableTextExpansionModel(self._tokenizer, model)
+
         if self._task_type == "fill_mask":
             model = transformers.AutoModelForMaskedLM.from_pretrained(
                 self._model_id, token=self._access_token, torchscript=True
@@ -1027,7 +1059,7 @@ class TransformerModel:
 
         else:
             raise TypeError(
-                f"Unknown task type {self._task_type}, must be one of: {SUPPORTED_TASK_TYPES_NAMES}"
+                f"Task {self._task_type} is not supported, must be one of: {SUPPORTED_TASK_TYPES_NAMES}"
             )
 
     def elasticsearch_model_id(self) -> str:

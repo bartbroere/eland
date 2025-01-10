@@ -42,6 +42,7 @@ CLASSIFIERS = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
 ]
 
@@ -60,10 +61,12 @@ extras = {
     "lightgbm": ["lightgbm>=2,<4"],
     "pytorch": [
         "requests<3",
-        "torch==2.1.2",
+        "torch==2.3.1",
         "tqdm",
-        "sentence-transformers>=2.1.0,<=2.3.1",
-        "transformers[torch]>=4.31.0,<4.36.0",
+        "sentence-transformers>=2.1.0,<=2.7.0",
+        # sentencepiece is a required dependency for the slow tokenizers
+        # https://huggingface.co/transformers/v4.4.2/migration.html#sentencepiece-is-removed-from-the-required-dependencies
+        "transformers[sentencepiece]>=4.31.0,<4.44.0",
     ],
 }
 extras["all"] = list({dep for deps in extras.values() for dep in deps})
@@ -85,7 +88,7 @@ setup(
     packages=find_packages(include=["eland", "eland.*", "kql"]),
     install_requires=[
         "elasticsearch>=8.3,<9",
-        "pandas>=1.5,<2",
+        "pandas>=1.5,<3",
         "matplotlib>=3.6",
         "numpy>=1.2.0,<2",
         "packaging",
@@ -113,7 +116,7 @@ setup(
     entry_points={
         "console_scripts": "eland_import_hub_model=eland.cli.eland_import_hub_model:main"
     },
-    python_requires=">=3.8,<3.12",
+    python_requires=">=3.8,<3.13",
     package_data={"eland": ["py.typed"], "kql": ["*.g"]},
     include_package_data=True,
     zip_safe=False,
