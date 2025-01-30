@@ -112,14 +112,14 @@ def pandas_to_eland(
     <BLANKLINE>
     [3 rows x 8 columns]
     >>> pd_df.dtypes  # doctest: +SKIP
-    A           float64
-    B             int64
-    C            object
-    D    datetime64[ns]
-    E           float64
-    F              bool
-    G             int64
-    H            object
+    A          float64
+    B            int64
+    C           object
+    D    datetime64[s]
+    E          float64
+    F             bool
+    G            int64
+    H           object
     dtype: object
 
     Convert `pandas.DataFrame` to `eland.DataFrame` - this creates an Elasticsearch index called `pandas_to_eland`.
@@ -535,10 +535,9 @@ def csv_to_eland(  # type: ignore
     if "mangle_dupe_cols" in kwargs:
         kwargs.pop("mangle_dupe_cols")
         warnings.warn(
-            "This argument no longer works. Furthermore, "
+            "The mangle_dupe_cols argument no longer works. Furthermore, "
             "duplicate columns will automatically get a number suffix."
         )
-
     # read csv in chunks to pandas DataFrame and dump to eland DataFrame (and Elasticsearch)
     reader = pd.read_csv(filepath_or_buffer, **kwargs)
 

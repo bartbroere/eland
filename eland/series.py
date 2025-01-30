@@ -45,7 +45,7 @@ from pandas.io.common import _expand_user, stringify_path  # type: ignore
 
 import eland.plotting
 from eland.arithmetics import ArithmeticNumber, ArithmeticSeries, ArithmeticString
-from eland.common import DEFAULT_NUM_ROWS_DISPLAYED, docstring_parameter
+from eland.common import DEFAULT_NUM_ROWS_DISPLAYED, PANDAS_VERSION, docstring_parameter
 from eland.filter import (
     BooleanFilter,
     Equal,
@@ -294,11 +294,12 @@ class Series(NDFrame):
         --------
         >>> df = ed.DataFrame('http://localhost:9200', 'flights')
         >>> df['Carrier'].value_counts()  # doctest: +SKIP
+        Carrier
         Logstash Airways    3331
         JetBeats            3274
         Kibana Airlines     3234
         ES-Air              3220
-        Name: Carrier, dtype: int64
+        Name: count, dtype: int64
         """
         if not isinstance(es_size, int):
             raise TypeError("es_size must be a positive integer.")
@@ -306,7 +307,7 @@ class Series(NDFrame):
             raise ValueError("es_size must be a positive integer.")
         value_counts = self._query_compiler.value_counts(es_size)
         # https://pandas.pydata.org/docs/whatsnew/v2.0.0.html#value-counts-sets-the-resulting-name-to-count
-        if pd.__version__.split(".")[0] == "2":
+        if PANDAS_VERSION[0] == 2:
             value_counts.name = "count"
             value_counts.index.names = FrozenList([self.es_field_name])
             value_counts.index.name = self.es_field_name
