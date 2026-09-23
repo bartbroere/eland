@@ -39,6 +39,7 @@ try:
     from eland.ml.pytorch import (
         FillMaskInferenceOptions,
         NlpBertTokenizationConfig,
+        NlpDebertaV2TokenizationConfig,
         NlpMPNetTokenizationConfig,
         NlpRobertaTokenizationConfig,
         NlpXLMRobertaTokenizationConfig,
@@ -57,10 +58,6 @@ except ImportError:
 from tests import ES_VERSION
 
 pytestmark = [
-    pytest.mark.skipif(
-        ES_VERSION < (8, 15, 1),
-        reason="Eland uses Pytorch 2.3.1, versions of Elasticsearch prior to 8.15.1 are incompatible with PyTorch 2.3.1",
-    ),
     pytest.mark.skipif(
         not HAS_SKLEARN, reason="This test requires 'scikit-learn' package to run"
     ),
@@ -147,6 +144,14 @@ if HAS_PYTORCH and HAS_SKLEARN and HAS_TRANSFORMERS:
             ZeroShotClassificationInferenceOptions,
             NlpRobertaTokenizationConfig,
             1024,
+            None,
+        ),
+        (
+            "microsoft/deberta-v3-xsmall",
+            "fill_mask",
+            FillMaskInferenceOptions,
+            NlpDebertaV2TokenizationConfig,
+            512,
             None,
         ),
     ]

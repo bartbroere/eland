@@ -78,9 +78,15 @@ Once your changes and tests are ready to submit for review:
     # Run Auto-format, lint, mypy type checker for your changes
     $ nox -s format
 
-    # Run the test suite
-    $ pytest --doctest-modules eland/ tests/
-    $ pytest --nbval tests/notebook/
+    # Launch Elasticsearch with a trial licence and ML enabled
+    $ docker run --name elasticsearch -p 9200:9200 -e "discovery.type=single-node" -e "xpack.security.enabled=false" -e "xpack.license.self_generated.type=trial" docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+
+    # See all test suites
+    $ nox -l
+    # Run a specific test suite
+    $ nox -rs "test-3.13(pandas_version='2.3.3')"
+    # Run a specific test
+    $ nox -rs "test-3.13(pandas_version='2.3.3')" -- -k test_learning_to_rank
 
     ```
 
@@ -169,7 +175,7 @@ currently using a minimum version of PyCharm 2019.2.4.
 * Setup Elasticsearch instance with docker
 
     ``` bash
-    > ELASTICSEARCH_VERSION=elasticsearch:8.x-SNAPSHOT BUILDKITE=false .buildkite/run-elasticsearch.sh
+    > ELASTICSEARCH_VERSION=elasticsearch:8.17.0 BUILDKITE=false .buildkite/run-elasticsearch.sh
     ```
 
 * Now check `http://localhost:9200`
@@ -203,7 +209,7 @@ currently using a minimum version of PyCharm 2019.2.4.
 * To test specific versions of Python run
 
     ``` bash
-    > nox -s test-3.8
+    > nox -s test-3.13
     ```
 
 ### Documentation

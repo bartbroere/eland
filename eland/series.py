@@ -33,18 +33,19 @@ Based on NDFrame which underpins eland.DataFrame
 
 import sys
 import warnings
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from datetime import datetime
 from io import StringIO
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
 import pandas as pd  # type: ignore
+from pandas.core.indexes.frozen import FrozenList
 from pandas.io.common import _expand_user, stringify_path  # type: ignore
 
 import eland.plotting
 from eland.arithmetics import ArithmeticNumber, ArithmeticSeries, ArithmeticString
-from eland.common import DEFAULT_NUM_ROWS_DISPLAYED, docstring_parameter
+from eland.common import DEFAULT_NUM_ROWS_DISPLAYED, PANDAS_VERSION, docstring_parameter
 from eland.filter import (
     BooleanFilter,
     Equal,
@@ -116,9 +117,9 @@ class Series(NDFrame):
     def __init__(
         self,
         es_client: Optional["Elasticsearch"] = None,
-        es_index_pattern: Optional[str] = None,
-        name: Optional[str] = None,
-        es_index_field: Optional[str] = None,
+        es_index_pattern: str | None = None,
+        name: str | None = None,
+        es_index_field: str | None = None,
         _query_compiler: Optional["QueryCompiler"] = None,
     ) -> None:
         # Series has 1 column
@@ -148,7 +149,7 @@ class Series(NDFrame):
         return len(self.index) == 0
 
     @property
-    def shape(self) -> Tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         """
         Return a tuple representing the dimensionality of the Series.
 
@@ -255,9 +256,9 @@ class Series(NDFrame):
 
     def sample(
         self,
-        n: Optional[int] = None,
-        frac: Optional[float] = None,
-        random_state: Optional[int] = None,
+        n: int | None = None,
+        frac: float | None = None,
+        random_state: int | None = None,
     ) -> "Series":
         return Series(
             _query_compiler=self._query_compiler.sample(n, frac, random_state)
@@ -292,18 +293,26 @@ class Series(NDFrame):
         Examples
         --------
         >>> df = ed.DataFrame('http://localhost:9200', 'flights')
-        >>> df['Carrier'].value_counts()
+        >>> df['Carrier'].value_counts()  # doctest: +SKIP
+        Carrier
         Logstash Airways    3331
         JetBeats            3274
         Kibana Airlines     3234
         ES-Air              3220
-        Name: Carrier, dtype: int64
+        Name: count, dtype: int64
         """
         if not isinstance(es_size, int):
             raise TypeError("es_size must be a positive integer.")
         elif es_size <= 0:
             raise ValueError("es_size must be a positive integer.")
-        return self._query_compiler.value_counts(es_size)
+        value_counts = self._query_compiler.value_counts(es_size)
+        # https://pandas.pydata.org/docs/whatsnew/v2.0.0.html#value-counts-sets-the-resulting-name-to-count
+        if PANDAS_VERSION[0] == 2:
+            value_counts.name = "count"
+            value_counts.index.names = FrozenList([self.es_field_name])
+            value_counts.index.name = self.es_field_name
+
+        return value_counts
 
     # dtype not implemented for Series as causes query to fail
     # in pandas.core.computation.ops.Term.type
@@ -352,7 +361,7 @@ class Series(NDFrame):
         name=False,
         max_rows=None,
         min_rows=None,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Render a string representation of the Series.
 
@@ -544,7 +553,7 @@ class Series(NDFrame):
         else:
             raise NotImplementedError(other, type(other))
 
-    def isin(self, other: Union[Collection, pd.Series]) -> BooleanFilter:
+    def isin(self, other: Collection | pd.Series) -> BooleanFilter:
         if isinstance(other, (Collection, pd.Series)):
             return IsIn(field=self.name, value=to_list(other))
         else:
@@ -586,8 +595,8 @@ class Series(NDFrame):
     notnull = notna
 
     def quantile(
-        self, q: Union[int, float, List[int], List[float]] = 0.5
-    ) -> Union[pd.Series, Any]:
+        self, q: int | float | list[int] | list[float] = 0.5
+    ) -> pd.Series | Any:
         """
         Used to calculate quantile for a given Series.
 
@@ -642,10 +651,10 @@ class Series(NDFrame):
 
     def filter(
         self,
-        items: Optional[Sequence[str]] = None,
-        like: Optional[str] = None,
-        regex: Optional[str] = None,
-        axis: Optional[Union[int, str]] = None,
+        items: Sequence[str] | None = None,
+        like: str | None = None,
+        regex: str | None = None,
+        axis: int | str | None = None,
     ) -> "Series":
         """
         Subset the dataframe rows or columns according to the specified index labels.
@@ -746,8 +755,8 @@ class Series(NDFrame):
         *,
         match_phrase: bool = False,
         match_only_text_fields: bool = True,
-        analyzer: Optional[str] = None,
-        fuzziness: Optional[Union[int, str]] = None,
+        analyzer: str | None = None,
+        fuzziness: int | str | None = None,
         **kwargs: Any,
     ) -> QueryFilter:
         """Filters data with an Elasticsearch ``match`` or ``match_phrase``
@@ -1420,7 +1429,7 @@ class Series(NDFrame):
 
         return series
 
-    def max(self, numeric_only: Optional[bool] = None) -> pd.Series:
+    def max(self, numeric_only: bool | None = None) -> pd.Series:
         """
         Return the maximum of the Series values
 
@@ -1444,7 +1453,7 @@ class Series(NDFrame):
         results = super().max(numeric_only=numeric_only)
         return results.squeeze()
 
-    def mean(self, numeric_only: Optional[bool] = None) -> pd.Series:
+    def mean(self, numeric_only: bool | None = None) -> pd.Series:
         """
         Return the mean of the Series values
 
@@ -1468,7 +1477,7 @@ class Series(NDFrame):
         results = super().mean(numeric_only=numeric_only)
         return results.squeeze()
 
-    def median(self, numeric_only: Optional[bool] = None) -> pd.Series:
+    def median(self, numeric_only: bool | None = None) -> pd.Series:
         """
         Return the median of the Series values
 
@@ -1493,7 +1502,7 @@ class Series(NDFrame):
         results = super().median(numeric_only=numeric_only)
         return results.squeeze()
 
-    def min(self, numeric_only: Optional[bool] = None) -> pd.Series:
+    def min(self, numeric_only: bool | None = None) -> pd.Series:
         """
         Return the minimum of the Series values
 
@@ -1517,7 +1526,7 @@ class Series(NDFrame):
         results = super().min(numeric_only=numeric_only)
         return results.squeeze()
 
-    def sum(self, numeric_only: Optional[bool] = None) -> pd.Series:
+    def sum(self, numeric_only: bool | None = None) -> pd.Series:
         """
         Return the sum of the Series values
 
@@ -1557,8 +1566,8 @@ class Series(NDFrame):
         Examples
         --------
         >>> s = ed.DataFrame('http://localhost:9200', 'flights')['Carrier']
-        >>> s.nunique()
-        4
+        >>> s.nunique() # doctest: +SKIP
+        np.int64(4)
         """
         results = super().nunique()
         return results.squeeze()
@@ -1581,7 +1590,7 @@ class Series(NDFrame):
         """
         return self._query_compiler.unique()
 
-    def var(self, numeric_only: Optional[bool] = None) -> pd.Series:
+    def var(self, numeric_only: bool | None = None) -> pd.Series:
         """
         Return variance for a Series
 
@@ -1603,7 +1612,7 @@ class Series(NDFrame):
         results = super().var(numeric_only=numeric_only)
         return results.squeeze()
 
-    def std(self, numeric_only: Optional[bool] = None) -> pd.Series:
+    def std(self, numeric_only: bool | None = None) -> pd.Series:
         """
         Return standard deviation for a Series
 
@@ -1625,7 +1634,7 @@ class Series(NDFrame):
         results = super().std(numeric_only=numeric_only)
         return results.squeeze()
 
-    def mad(self, numeric_only: Optional[bool] = None) -> pd.Series:
+    def mad(self, numeric_only: bool | None = None) -> pd.Series:
         """
         Return median absolute deviation for a Series
 

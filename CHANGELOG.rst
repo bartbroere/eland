@@ -2,6 +2,37 @@
 Changelog
 =========
 
+9.2.0 (2025-10-30)
+------------------
+
+* Upgrade PyTorch to 2.7.1 (`#811 <https://github.com/elastic/eland/pull/811>`_)
+* Drop Python 3.9, support Python 3.13 (`#810 <https://github.com/elastic/eland/pull/810>`_)
+* Support NumPy 2 (`#809 <https://github.com/elastic/eland/pull/809>`_)
+* Upgrade Sentence Transformers to v5  (`#801 <https://github.com/elastic/eland/pull/801>`_)
+
+9.0.1 (2025-04-30)
+------------------
+
+* Forbid Elasticsearch 8 client or server (`#780 <https://github.com/elastic/eland/pull/780>`_)
+* Fix DeBERTa tokenization (`#769 <https://github.com/elastic/eland/pull/769>`_)
+* Upgrade PyTorch to 2.5.1 (`#785 <https://github.com/elastic/eland/pull/785>`_)
+* Upgrade LightGBM to 4.6.0 (`#782 <https://github.com/elastic/eland/pull/782>`_)
+
+9.0.0 (2025-04-15)
+------------------
+
+* Drop Python 3.8, Support Python 3.12 (`#743 <https://github.com/elastic/eland/pull/743>`_)
+* Support Pandas 2 (`#742 <https://github.com/elastic/eland/pull/742>`_)
+* Upgrade transformers to 4.47 (`#752 <https://github.com/elastic/eland/pull/752>`_)
+* Remove ML model export as sklearn Pipeline (`#744 <https://github.com/elastic/eland/pull/744>`_)
+* Allow scikit-learn 1.5 (`#729 <https://github.com/elastic/eland/pull/729>`_)
+* Migrate docs from AsciiDoc to Markdown (`#762 <https://github.com/elastic/eland/pull/762>`_)
+
+8.17.0 (2025-01-07)
+-------------------
+
+* Support sparse embedding models such as SPLADE-v3-DistilBERT (`#740 <https://github.com/elastic/eland/pull/740>`_)
+
 8.16.0 (2024-11-13)
 -------------------
 

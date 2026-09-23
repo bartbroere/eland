@@ -10,13 +10,12 @@ pytest>=5.2.1
 pytest-mock
 pytest-cov
 nbval
-shap==0.43.0
 
 #
 # Docs
 #
 nox
-numpydoc>=0.9.0
+numpydoc
 mypy
 build
 twine

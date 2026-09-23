@@ -16,8 +16,10 @@
 #  under the License.
 
 import csv
+import warnings
 from collections import deque
-from typing import Any, Dict, Generator, List, Mapping, Optional, Tuple, Union
+from collections.abc import Generator, Mapping
+from typing import Any
 
 import pandas as pd  # type: ignore
 from elasticsearch import Elasticsearch
@@ -37,15 +39,15 @@ _DEFAULT_LOW_MEMORY: bool = _c_parser_defaults["low_memory"]
 
 def pandas_to_eland(
     pd_df: pd.DataFrame,
-    es_client: Union[str, List[str], Tuple[str, ...], Elasticsearch],
+    es_client: str | list[str] | tuple[str, ...] | Elasticsearch,
     es_dest_index: str,
     es_if_exists: str = "fail",
     es_refresh: bool = False,
     es_dropna: bool = False,
-    es_type_overrides: Optional[Mapping[str, str]] = None,
+    es_type_overrides: Mapping[str, str] | None = None,
     es_verify_mapping_compatibility: bool = True,
     thread_count: int = 4,
-    chunksize: Optional[int] = None,
+    chunksize: int | None = None,
     use_pandas_index_for_es_ids: bool = True,
 ) -> DataFrame:
     """
@@ -110,15 +112,15 @@ def pandas_to_eland(
     2  3.141  1  ...  3  Long text - to be indexed as es type text
     <BLANKLINE>
     [3 rows x 8 columns]
-    >>> pd_df.dtypes
-    A           float64
-    B             int64
-    C            object
-    D    datetime64[ns]
-    E           float64
-    F              bool
-    G             int64
-    H            object
+    >>> pd_df.dtypes  # doctest skip required for pandas < 2  # doctest: +SKIP
+    A          float64
+    B            int64
+    C           object
+    D    datetime64[s]
+    E          float64
+    F             bool
+    G            int64
+    H           object
     dtype: object
 
     Convert `pandas.DataFrame` to `eland.DataFrame` - this creates an Elasticsearch index called `pandas_to_eland`.
@@ -193,7 +195,7 @@ def pandas_to_eland(
         es_dropna: bool,
         use_pandas_index_for_es_ids: bool,
         es_dest_index: str,
-    ) -> Generator[Dict[str, Any], None, None]:
+    ) -> Generator[dict[str, Any], None, None]:
         for row in pd_df.iterrows():
             if es_dropna:
                 values = row[1].dropna().to_dict()
@@ -294,12 +296,12 @@ def eland_to_pandas(ed_df: DataFrame, show_progress: bool = False) -> pd.DataFra
 
 def csv_to_eland(  # type: ignore
     filepath_or_buffer,
-    es_client: Union[str, List[str], Tuple[str, ...], Elasticsearch],
+    es_client: str | list[str] | tuple[str, ...] | Elasticsearch,
     es_dest_index: str,
     es_if_exists: str = "fail",
     es_refresh: bool = False,
     es_dropna: bool = False,
-    es_type_overrides: Optional[Mapping[str, str]] = None,
+    es_type_overrides: Mapping[str, str] | None = None,
     sep=",",
     delimiter=None,
     # Column and Index Locations and Names
@@ -307,9 +309,9 @@ def csv_to_eland(  # type: ignore
     names=None,
     index_col=None,
     usecols=None,
-    squeeze=False,
+    squeeze=None,
     prefix=None,
-    mangle_dupe_cols=True,
+    mangle_dupe_cols=None,
     # General Parsing Configuration
     dtype=None,
     engine=None,
@@ -357,6 +359,7 @@ def csv_to_eland(  # type: ignore
     low_memory: bool = _DEFAULT_LOW_MEMORY,
     memory_map=False,
     float_precision=None,
+    **extra_kwargs,
 ) -> "DataFrame":
     """
     Read a comma-separated values (csv) file into eland.DataFrame (i.e. an Elasticsearch index).
@@ -446,7 +449,7 @@ def csv_to_eland(  # type: ignore
 
     TODO - currently the eland.DataFrame may not retain the order of the data in the csv.
     """
-    kwargs: Dict[str, Any] = {
+    kwargs: dict[str, Any] = {
         "sep": sep,
         "delimiter": delimiter,
         "engine": engine,
@@ -485,7 +488,6 @@ def csv_to_eland(  # type: ignore
         "usecols": usecols,
         "verbose": verbose,
         "encoding": encoding,
-        "squeeze": squeeze,
         "memory_map": memory_map,
         "float_precision": float_precision,
         "na_filter": na_filter,
@@ -494,9 +496,9 @@ def csv_to_eland(  # type: ignore
         "error_bad_lines": error_bad_lines,
         "on_bad_lines": on_bad_lines,
         "low_memory": low_memory,
-        "mangle_dupe_cols": mangle_dupe_cols,
         "infer_datetime_format": infer_datetime_format,
         "skip_blank_lines": skip_blank_lines,
+        **extra_kwargs,
     }
 
     if chunksize is None:
@@ -525,6 +527,18 @@ def csv_to_eland(  # type: ignore
 
         kwargs.pop("on_bad_lines")
 
+    if "squeeze" in kwargs:
+        kwargs.pop("squeeze")
+        warnings.warn(
+            "This argument no longer works, use .squeeze('columns') on your DataFrame instead"
+        )
+
+    if "mangle_dupe_cols" in kwargs:
+        kwargs.pop("mangle_dupe_cols")
+        warnings.warn(
+            "The mangle_dupe_cols argument no longer works. Furthermore, "
+            "duplicate columns will automatically get a number suffix."
+        )
     # read csv in chunks to pandas DataFrame and dump to eland DataFrame (and Elasticsearch)
     reader = pd.read_csv(filepath_or_buffer, **kwargs)
 

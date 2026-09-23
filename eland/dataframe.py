@@ -18,8 +18,9 @@
 import re
 import sys
 import warnings
+from collections.abc import Iterable, Sequence
 from io import StringIO
-from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
 import pandas as pd  # type: ignore
@@ -35,7 +36,7 @@ from pandas.io.formats.printing import pprint_thing  # type: ignore
 from pandas.util._validators import validate_bool_kwarg  # type: ignore
 
 import eland.plotting as gfx
-from eland.common import DEFAULT_NUM_ROWS_DISPLAYED, docstring_parameter
+from eland.common import DEFAULT_NUM_ROWS_DISPLAYED, PANDAS_VERSION, docstring_parameter
 from eland.filter import BooleanFilter
 from eland.groupby import DataFrameGroupBy
 from eland.ndframe import NDFrame
@@ -125,12 +126,12 @@ class DataFrame(NDFrame):
 
     def __init__(
         self,
-        es_client: Optional[
-            Union[str, List[str], Tuple[str, ...], "Elasticsearch"]
-        ] = None,
-        es_index_pattern: Optional[str] = None,
-        columns: Optional[List[str]] = None,
-        es_index_field: Optional[str] = None,
+        es_client: None | (
+            Union[str, list[str], tuple[str, ...], "Elasticsearch"]
+        ) = None,
+        es_index_pattern: str | None = None,
+        columns: list[str] | None = None,
+        es_index_field: str | None = None,
         _query_compiler: Optional["QueryCompiler"] = None,
     ) -> None:
         """
@@ -286,9 +287,9 @@ class DataFrame(NDFrame):
 
     def sample(
         self,
-        n: Optional[int] = None,
-        frac: Optional[float] = None,
-        random_state: Optional[int] = None,
+        n: int | None = None,
+        frac: float | None = None,
+        random_state: int | None = None,
     ) -> "DataFrame":
         """
         Return n randomly sample rows or the specify fraction of rows
@@ -412,9 +413,7 @@ class DataFrame(NDFrame):
             axis = pd.DataFrame._get_axis_name(axis)
             axes = {axis: labels}
         elif index is not None or columns is not None:
-            axes, _ = pd.DataFrame()._construct_axes_from_arguments(
-                (index, columns), {}
-            )
+            axes = {"columns": columns, "index": index}
         else:
             raise ValueError(
                 "Need to specify at least one of 'labels', 'index' or 'columns'"
@@ -520,7 +519,7 @@ class DataFrame(NDFrame):
             self._repr_fits_horizontal_() and self._repr_fits_vertical_()
         )
 
-    def _repr_html_(self) -> Optional[str]:
+    def _repr_html_(self) -> str | None:
         """
         From pandas - this is called by notebooks
         """
@@ -642,13 +641,13 @@ class DataFrame(NDFrame):
         self,
         text: str,
         *,
-        columns: Optional[Union[str, Sequence[str]]] = None,
+        columns: str | Sequence[str] | None = None,
         match_phrase: bool = False,
         must_not_match: bool = False,
-        multi_match_type: Optional[str] = None,
+        multi_match_type: str | None = None,
         match_only_text_fields: bool = True,
-        analyzer: Optional[str] = None,
-        fuzziness: Optional[Union[int, str]] = None,
+        analyzer: str | None = None,
+        fuzziness: int | str | None = None,
         **kwargs: Any,
     ) -> "DataFrame":
         """Filters data with an Elasticsearch ``match``, ``match_phrase``, or
@@ -848,11 +847,11 @@ class DataFrame(NDFrame):
 
     def info(
         self,
-        verbose: Optional[bool] = None,
-        buf: Optional[StringIO] = None,
-        max_cols: Optional[int] = None,
-        memory_usage: Optional[bool] = None,
-        show_counts: Optional[bool] = None,
+        verbose: bool | None = None,
+        buf: StringIO | None = None,
+        max_cols: int | None = None,
+        memory_usage: bool | None = None,
+        show_counts: bool | None = None,
     ) -> None:
         """
         Print a concise summary of a DataFrame.
@@ -1244,7 +1243,7 @@ class DataFrame(NDFrame):
     def _getitem(
         self,
         key: Union[
-            "DataFrame", "Series", pd.Index, List[str], str, BooleanFilter, np.ndarray
+            "DataFrame", "Series", pd.Index, list[str], str, BooleanFilter, np.ndarray
         ],
     ) -> Union["Series", "DataFrame"]:
         """Get the column specified by key for this DataFrame.
@@ -1277,7 +1276,7 @@ class DataFrame(NDFrame):
         s = self._reduce_dimension(self._query_compiler.getitem_column_array([key]))
         return s
 
-    def _getitem_array(self, key: Union[str, pd.Series]) -> "DataFrame":
+    def _getitem_array(self, key: str | pd.Series) -> "DataFrame":
         if isinstance(key, Series):
             key = key.to_pandas()
         if is_bool_indexer(key):
@@ -1352,7 +1351,7 @@ class DataFrame(NDFrame):
         doublequote=True,
         escapechar=None,
         decimal=".",
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Write Elasticsearch data to a comma-separated values (csv) file.
 
@@ -1401,7 +1400,7 @@ class DataFrame(NDFrame):
         default_handler=None,
         lines=False,
         compression="infer",
-        index=True,
+        index=None,
         indent=None,
         storage_options=None,
     ):
@@ -1416,6 +1415,8 @@ class DataFrame(NDFrame):
         --------
         :pandas_api_docs:`pandas.DataFrame.to_json`
         """
+        if index is None and PANDAS_VERSION[0] == 1:
+            index = True  # switch to the pandas 1 default
         kwargs = {
             "path_or_buf": path_or_buf,
             "orient": orient,
@@ -1481,7 +1482,7 @@ class DataFrame(NDFrame):
         return self._getitem_array(empty_df.columns)
 
     @property
-    def shape(self) -> Tuple[int, int]:
+    def shape(self) -> tuple[int, int]:
         """
         Return a tuple representing the dimensionality of the DataFrame.
 
@@ -1537,7 +1538,7 @@ class DataFrame(NDFrame):
         """
         return self.columns
 
-    def iterrows(self) -> Iterable[Tuple[Union[str, Tuple[str, ...]], pd.Series]]:
+    def iterrows(self) -> Iterable[tuple[str | tuple[str, ...], pd.Series]]:
         """
         Iterate over eland.DataFrame rows as (index, pandas.Series) pairs.
 
@@ -1587,8 +1588,8 @@ class DataFrame(NDFrame):
             yield from df.iterrows()
 
     def itertuples(
-        self, index: bool = True, name: Union[str, None] = "Eland"
-    ) -> Iterable[Tuple[Any, ...]]:
+        self, index: bool = True, name: str | None = "Eland"
+    ) -> Iterable[tuple[Any, ...]]:
         """
         Iterate over eland.DataFrame rows as namedtuples.
 
@@ -1656,12 +1657,12 @@ class DataFrame(NDFrame):
 
     def aggregate(
         self,
-        func: Union[str, List[str]],
+        func: str | list[str],
         axis: int = 0,
-        numeric_only: Optional[bool] = None,
+        numeric_only: bool | None = None,
         *args,
         **kwargs,
-    ) -> Union[pd.Series, pd.DataFrame]:
+    ) -> pd.Series | pd.DataFrame:
         """
         Aggregate using one or more operations over the specified axis.
 
@@ -1687,9 +1688,9 @@ class DataFrame(NDFrame):
             - True: returns all values with float64, NaN/NaT are ignored.
             - False: returns all values with float64.
             - None: returns all values with default datatype.
-        *args
+        args:
             Positional arguments to pass to `func`
-        **kwargs
+        kwargs:
             Keyword arguments to pass to `func`
 
         Returns
@@ -1757,7 +1758,7 @@ class DataFrame(NDFrame):
     hist = gfx.ed_hist_frame
 
     def groupby(
-        self, by: Optional[Union[str, List[str]]] = None, dropna: bool = True
+        self, by: str | list[str] | None = None, dropna: bool = True
     ) -> "DataFrameGroupBy":
         """
         Used to perform groupby operations
@@ -1913,8 +1914,8 @@ class DataFrame(NDFrame):
 
     def quantile(
         self,
-        q: Union[int, float, List[int], List[float]] = 0.5,
-        numeric_only: Optional[bool] = True,
+        q: int | float | list[int] | list[float] = 0.5,
+        numeric_only: bool | None = True,
     ) -> "pd.DataFrame":
         """
         Used to calculate quantile for a given DataFrame.
@@ -2074,9 +2075,7 @@ class DataFrame(NDFrame):
         else:
             raise NotImplementedError(expr, type(expr))
 
-    def get(
-        self, key: Any, default: Optional[Any] = None
-    ) -> Union["Series", "DataFrame"]:
+    def get(self, key: Any, default: Any | None = None) -> Union["Series", "DataFrame"]:
         """
         Get item from object for given key (ex: DataFrame column).
         Returns default value if not found.
@@ -2118,10 +2117,10 @@ class DataFrame(NDFrame):
 
     def filter(
         self,
-        items: Optional[Sequence[str]] = None,
-        like: Optional[str] = None,
-        regex: Optional[str] = None,
-        axis: Optional[Union[int, str]] = None,
+        items: Sequence[str] | None = None,
+        like: str | None = None,
+        regex: str | None = None,
+        axis: int | str | None = None,
     ) -> "DataFrame":
         """
         Subset the dataframe rows or columns according to the specified index labels.

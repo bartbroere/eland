@@ -53,15 +53,15 @@ $ conda install -c conda-forge eland
 
 ### Compatibility
 
-- Supports Python 3.8, 3.9, 3.10, 3.11 and Pandas 1.5
-- Supports Elasticsearch clusters that are 7.11+, recommended 8.13 or later for all features to work.
+- Supports Python 3.10, 3.11, 3.12 and 3.13.
+- Supports Pandas 1.5 and 2.
+- Supports Elasticsearch 9+ clusters.
   If you are using the NLP with PyTorch feature make sure your Eland minor version matches the minor 
-  version of your Elasticsearch cluster. For all other features it is sufficient for the major versions
-  to match.
+  version of your Elasticsearch cluster. For all other features it is sufficient for the major version
+  to match. Use Eland 8.x for Elasticsearch 8.x support.
 - You need to install the appropriate version of PyTorch to import an NLP model. Run `python -m pip
   install 'eland[pytorch]'` to install that version.
   
-
 ### Prerequisites
 
 Users installing Eland on Debian-based distributions may need to install prerequisite packages for the transitive
@@ -97,7 +97,7 @@ $ docker run -it --rm --network host \
       --task-type ner
 ```
 
-### Connecting to Elasticsearch 
+### Connecting to Elasticsearch
 
 Eland uses the [Elasticsearch low level client](https://elasticsearch-py.readthedocs.io) to connect to Elasticsearch. 
 This client supports a range of [connection options and authentication options](https://elasticsearch-py.readthedocs.io/en/stable/api.html#elasticsearch). 
@@ -225,6 +225,10 @@ libraries to be serialized and used as an inference model in Elasticsearch.
 ```
 
 ### NLP with PyTorch
+
+> [!WARNING]  
+> PyTorch models can execute code on your Elasticsearch server, exposing your cluster to potential security vulnerabilities.
+> **Only use models from trusted sources and never use models from unverified or unknown providers.**
 
 For NLP tasks, Eland allows importing PyTorch trained BERT models into Elasticsearch. Models can be either plain PyTorch
 models, or supported [transformers](https://huggingface.co/transformers) models from the
