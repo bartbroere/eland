@@ -19,5 +19,3 @@ numpydoc
 mypy
 build
 twine
-
-git+https://github.com/elastic/detection-rules

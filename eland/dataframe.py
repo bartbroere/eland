@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
 import pandas as pd  # type: ignore
-from kql import to_dsl
 from pandas.core.common import apply_if_callable, is_bool_indexer  # type: ignore
 from pandas.core.computation.eval import eval  # type: ignore
 from pandas.core.dtypes.common import is_list_like  # type: ignore
@@ -36,6 +35,7 @@ from pandas.io.formats.printing import pprint_thing  # type: ignore
 from pandas.util._validators import validate_bool_kwarg  # type: ignore
 
 import eland.plotting as gfx
+from eland._vendor.kql import to_dsl
 from eland.common import DEFAULT_NUM_ROWS_DISPLAYED, PANDAS_VERSION, docstring_parameter
 from eland.filter import BooleanFilter
 from eland.groupby import DataFrameGroupBy
